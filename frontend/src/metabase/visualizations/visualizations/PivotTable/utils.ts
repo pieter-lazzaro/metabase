@@ -5,6 +5,7 @@ import _ from "underscore";
 import { sumArray } from "metabase/lib/arrays";
 import { isPivotGroupColumn } from "metabase/lib/data_grid";
 import { measureText } from "metabase/lib/measure-text";
+import type { ClickObject } from "metabase/visualizations/types";
 import type StructuredQuery from "metabase-lib/queries/StructuredQuery";
 import type {
   Card,
@@ -26,7 +27,7 @@ import {
   DEFAULT_CELL_WIDTH,
 } from "./constants";
 import { partitions } from "./partitions";
-import type { PivotSetting, HeaderItem, CustomColumnWidth } from "./types";
+import type { PivotSetting, HeaderItem, CustomColumnWidth, RowSectionSortOrder, RowSortOrder } from "./types";
 
 // adds or removes columns from the pivot settings based on the current query
 export function updateValueWithCurrentColumns(
@@ -91,6 +92,69 @@ export function isColumnValid(col: DatasetColumn) {
 export function isFormattablePivotColumn(column: DatasetColumn) {
   return column.source === "aggregation";
 }
+
+export function isRowSortClickedObject(
+  clicked?: ClickObject,
+): clicked is ClickObject & { rowSort?: RowSectionSortOrder } {
+  if (clicked?.rowSort === undefined) {
+    return false;
+  }
+
+  return true;
+}
+
+function getRowSort(clicked?: ClickObject & { rowSort?: RowSectionSortOrder }) {
+  if (clicked?.rowSort === undefined) {
+    return undefined;
+  }
+
+  const { rowSectionIdx, colIdx, column } =
+    clicked.rowSort as RowSectionSortOrder;
+
+  return {
+    rowSectionIdx,
+    colIdx,
+    column,
+  };
+}
+
+export function updateSort({
+  clicked,
+  previousRowSortOrder,
+  sortDirection,
+}: {
+  clicked: ClickObject | undefined;
+  previousRowSortOrder: RowSortOrder;
+  sortDirection: sortDirections;
+}): RowSortOrder {
+  const sectionSort = getRowSort(clicked);
+
+  if (!sectionSort) {
+    return previousRowSortOrder;
+  }
+
+  if (sortDirection === "clear") {
+    const { [sectionSort.rowSectionIdx]: _, ...newRowSortOrder } =
+      previousRowSortOrder;
+
+    return newRowSortOrder;
+  }
+
+  const newRowSortOrder = {
+    [sectionSort.rowSectionIdx]: {
+      colIdx: sectionSort.colIdx ?? "[]",
+      column: sectionSort.column,
+      direction: sortDirection,
+    },
+  };
+
+  return {
+    ...previousRowSortOrder,
+    ...newRowSortOrder,
+  };
+}
+
+type sortDirections = "ascending" | "descending" | "clear";
 
 interface GetLeftHeaderWidthsProps {
   rowIndexes: number[];

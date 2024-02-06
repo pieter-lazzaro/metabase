@@ -13,6 +13,7 @@ import {
   isPivotGroupColumn,
   METRICS_AS_ROWS_SETTING,
   ROW_TOTALS_ON_TOP,
+  ROW_SORT_ORDER,
 } from "metabase/lib/data_grid";
 import { formatColumn } from "metabase/lib/formatting";
 import { ChartSettingIconRadio } from "metabase/visualizations/components/settings/ChartSettingIconRadio";
@@ -162,6 +163,7 @@ export const settings = {
     inline: true,
   },
   "pivot_table.column_widths": {},
+  [ROW_SORT_ORDER]: {},
   [COLUMN_FORMATTING_SETTING]: {
     section: t`Conditional Formatting`,
     widget: ChartSettingsTableFormatting,

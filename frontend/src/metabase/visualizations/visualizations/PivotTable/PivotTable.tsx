@@ -11,6 +11,7 @@ import _ from "underscore";
 import { sumArray } from "metabase/lib/arrays";
 import {
   COLUMN_SHOW_TOTALS,
+  ROW_SORT_ORDER,
   isPivotGroupColumn,
   multiLevelPivot,
 } from "metabase/lib/data_grid";
@@ -20,6 +21,7 @@ import {
   getDefaultSize,
   getMinSize,
 } from "metabase/visualizations/shared/utils/sizes";
+import type { ClickObject } from "metabase/visualizations/types";
 import type { DatasetData, VisualizationSettings } from "metabase-types/api";
 import type { State } from "metabase-types/store";
 
@@ -45,7 +47,7 @@ import {
   _columnSettings as columnSettings,
   getTitleForColumn,
 } from "./settings";
-import type { PivotTableClicked, HeaderWidthType } from "./types";
+import type { HeaderWidthType, RowSortOrder } from "./types";
 import {
   getLeftHeaderWidths,
   isSensible,
@@ -53,6 +55,8 @@ import {
   leftHeaderCellSizeAndPositionGetter,
   topHeaderCellSizeAndPositionGetter,
   getCellWidthsForSection,
+  isRowSortClickedObject,
+  updateSort,
 } from "./utils";
 
 const mapStateToProps = (state: State) => ({
@@ -83,6 +87,8 @@ function PivotTable({
   const [gridElement, setGridElement] = useState<HTMLElement | null>(null);
   const columnWidthSettings = settings["pivot_table.column_widths"];
   const rowMetrics = settings["pivot_table.metrics_as_rows"];
+  const rowSortOrderSettings = settings["pivot_table.row_sort_order"];
+
   const [
     { leftHeaderWidths, totalLeftHeaderWidths, valueHeaderWidths },
     setHeaderWidths,
@@ -117,6 +123,20 @@ function PivotTable({
     ],
   );
 
+  const [rowSortOrder, setRowSortOrder] = useState<RowSortOrder>({
+    ...rowSortOrderSettings,
+  });
+
+  const updateRowSortOrder = useCallback(
+    (newSortOrder: RowSortOrder) => {
+      setRowSortOrder(newSortOrder);
+      onUpdateVisualizationSettings({
+        "pivot_table.row_sort_order": newSortOrder,
+      });
+    },
+    [onUpdateVisualizationSettings],
+  );
+
   const bodyRef = useRef(null);
   const leftHeaderRef = useRef(null);
   const topHeaderRef = useRef(null);
@@ -147,7 +167,15 @@ function PivotTable({
       topHeaderRef.current as Collection | null
     )?.recomputeCellSizesAndPositions?.();
     (bodyRef.current as Grid | null)?.recomputeGridSize?.();
-  }, [data, leftHeaderRef, topHeaderRef, leftHeaderWidths, valueHeaderWidths]);
+  }, [
+    data,
+    leftHeaderRef,
+    topHeaderRef,
+    bodyRef,
+    leftHeaderWidths,
+    valueHeaderWidths,
+    rowSortOrder,
+  ]);
 
   useMount(() => {
     setGridElement(bodyRef.current && findDOMNode(bodyRef.current));
@@ -158,13 +186,18 @@ function PivotTable({
       return null;
     }
 
+    const localSettings = {
+      ...settings,
+      [ROW_SORT_ORDER]: rowSortOrder,
+    };
+
     try {
-      return multiLevelPivot(data, settings);
+      return multiLevelPivot(data, localSettings);
     } catch (e) {
       console.warn(e);
     }
     return null;
-  }, [data, settings]);
+  }, [data, settings, rowSortOrder]);
 
   const previousRowIndexes = usePrevious(pivoted?.rowIndexes);
   const previousRowMetrics = usePrevious(pivoted?.rowMetrics);
@@ -177,7 +210,12 @@ function PivotTable({
     !hasColumnWidths ||
     (previousRowIndexes &&
       !_.isEqual(pivoted?.rowIndexes, previousRowIndexes)) ||
-    !_.isEqual(pivoted?.rowMetrics, previousRowMetrics);
+    (previousRowMetrics && !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
+
+  const rowsOrColumnsChanged =
+    (previousRowIndexes &&
+      !_.isEqual(pivoted?.rowIndexes, previousRowIndexes)) ||
+    (previousRowMetrics && !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
 
   // In cases where there are horizontal scrollbars are visible AND the data grid has to scroll vertically as well,
   // the left sidebar and the main grid can get out of ScrollSync due to slightly differing heights
@@ -198,6 +236,16 @@ function PivotTable({
   }
 
   useEffect(() => {
+    if (rowsOrColumnsChanged) {
+      setRowSortOrder(() => {
+        return {};
+      });
+
+      onUpdateVisualizationSettings({
+        "pivot_table.row_sort_order": {},
+      });
+    }
+
     if (!pivoted?.rowIndexes) {
       setHeaderWidths({
         leftHeaderWidths: null,
@@ -234,6 +282,7 @@ function PivotTable({
     columnsChanged,
     setHeaderWidths,
     rowMetrics,
+    rowsOrColumnsChanged,
   ]);
 
   const handleColumnResize = (
@@ -301,16 +350,44 @@ function PivotTable({
     ? leftHeaderIndexWidth
     : leftHeaderIndexWidth;
 
-  function getCellClickHandler(clicked: PivotTableClicked) {
+  function getCellClickHandler(clicked: ClickObject | undefined) {
     if (!clicked) {
       return undefined;
     }
-    return (e: React.SyntheticEvent) =>
-      onVisualizationClick({
+
+    return (e: React.SyntheticEvent) => {
+      if (isRowSortClickedObject(clicked)) {
+        e.stopPropagation();
+        const { rowSectionIdx, colIdx, column } = clicked.rowSort ?? {};
+
+        const previousRowSort = rowSortOrder[rowSectionIdx ?? "[]"];
+
+        const sortDirection = previousRowSort?.direction;
+        const isAlreadySorted =
+          previousRowSort &&
+          previousRowSort.colIdx === colIdx &&
+          previousRowSort.column === column;
+
+        const newSort =
+          updateSort({
+            clicked,
+            previousRowSortOrder: rowSortOrder,
+            sortDirection:
+              !isAlreadySorted || sortDirection === "descending"
+                ? "ascending"
+                : "descending",
+          }) ?? {};
+
+        updateRowSortOrder(newSort);
+
+        return;
+      }
+      return onVisualizationClick({
         ...clicked,
         event: e.nativeEvent,
         settings,
       });
+    };
   }
 
   return (

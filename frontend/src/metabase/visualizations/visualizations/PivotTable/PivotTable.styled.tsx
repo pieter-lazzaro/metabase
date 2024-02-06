@@ -2,6 +2,7 @@ import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 
 import { color, alpha, darken } from "metabase/lib/colors";
+import { Icon } from "metabase/ui";
 
 import {
   CELL_HEIGHT,
@@ -56,6 +57,14 @@ const getColor = ({ isNightMode }: PivotTableCellProps) => {
 
 const getBorderColor = ({ isNightMode }: PivotTableCellProps) => {
   return isNightMode ? alpha("bg-black", 0.8) : color("border");
+};
+
+export const SortIcon = styled(Icon)`
+  margin: 4px;
+`;
+
+SortIcon.defaultProps = {
+  size: 8,
 };
 
 export const PivotTableCell = styled.div<PivotTableCellProps>`
