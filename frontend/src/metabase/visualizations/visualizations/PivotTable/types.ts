@@ -1,5 +1,5 @@
+import type { ClickObject } from "metabase/visualizations/types";
 import type {
-  DatasetColumn,
   FieldReference,
   AggregateFieldReference,
 } from "metabase-types/api";
@@ -10,9 +10,14 @@ export type PivotSetting = {
   values: AggregateFieldReference[];
 };
 
-export type PivotTableClicked = { value: string; column: DatasetColumn };
+export type RowSectionSortOrder = {
+  rowSectionIdx: string;
+  colIdx?: string;
+  column?: number;
+};
+
 export interface HeaderItem {
-  clicked: PivotTableClicked;
+  clicked?: ClickObject;
 
   isCollapsed?: boolean;
   hasChildren: boolean;
@@ -20,6 +25,8 @@ export interface HeaderItem {
   isSubtotal?: boolean;
   isGrandTotal?: boolean;
   isValueRow?: boolean;
+  levelSort?: any;
+  sortDirection?: "ascending" | "descending";
 
   depth: number;
   maxDepthBelow: number;
@@ -41,4 +48,12 @@ export type HeaderWidthType = {
   leftHeaderWidths: number[] | null;
   totalLeftHeaderWidths: number | null;
   valueHeaderWidths: CustomColumnWidth;
+};
+
+export type RowSortOrder = {
+  [rowSectionIdx: string]: {
+    colIdx: string;
+    column?: number;
+    direction: "ascending" | "descending";
+  };
 };

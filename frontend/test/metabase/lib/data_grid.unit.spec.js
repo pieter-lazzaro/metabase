@@ -722,7 +722,12 @@ describe("data_grid", () => {
           expect(rowCount).toEqual(5);
           expect(leftHeaderItems[0].value).toEqual("Totals for a"); // a is collapsed
           expect(getRowSection(0, 0)).toEqual([
-            { isSubtotal: true, value: "3" },
+            {
+              isSubtotal: true,
+              value: "3",
+              backgroundColor: null,
+              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["a"]' } },
+            },
           ]);
         });
         it("hides collapsed columns", () => {
@@ -734,10 +739,20 @@ describe("data_grid", () => {
           expect(leftHeaderItems[0].value).toEqual("Totals for a"); // a is collapsed
           expect(leftHeaderItems[1].value).toEqual("Totals for b"); // b is also collapsed
           expect(getRowSection(0, 0)).toEqual([
-            { isSubtotal: true, value: "3" },
+            {
+              isSubtotal: true,
+              value: "3",
+              backgroundColor: null,
+              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["a"]' } },
+            },
           ]);
           expect(getRowSection(0, 1)).toEqual([
-            { isSubtotal: true, value: "7" },
+            {
+              isSubtotal: true,
+              value: "7",
+              backgroundColor: null,
+              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["b"]' } },
+            },
           ]);
         });
       });
@@ -781,10 +796,12 @@ describe("data_grid", () => {
           expect(leftHeaderItems[1]).toMatchObject({
             value: "Totals for Affiliate",
             isSubtotal: true,
+            clicked: { rowSort: { rowSectionIdx: '["May"]' } },
           });
           expect(leftHeaderItems[5]).toMatchObject({
             value: "Totals for Twitter",
             isSubtotal: true,
+            clicked: { rowSort: { rowSectionIdx: '["May"]' } },
           });
           expect(getRowSection(1, 0)).toMatchObject([
             {
@@ -792,10 +809,24 @@ describe("data_grid", () => {
             },
           ]); //Value for affiliate, but not a subtotal so it has children
           expect(getRowSection(1, 2)).toEqual([
-            { isSubtotal: true, value: "6" },
+            {
+              isSubtotal: true,
+              value: "6",
+              backgroundColor: null,
+              clicked: {
+                rowSort: { colIdx: "[]", rowSectionIdx: '["May","Google"]' },
+              },
+            },
           ]);
           expect(getRowSection(1, 3)).toEqual([
-            { isSubtotal: true, value: "4" },
+            {
+              isSubtotal: true,
+              value: "4",
+              backgroundColor: null,
+              clicked: {
+                rowSort: { colIdx: "[]", rowSectionIdx: '["May","Organic"]' },
+              },
+            },
           ]);
         });
       });
