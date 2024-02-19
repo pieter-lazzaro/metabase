@@ -7,6 +7,8 @@ import {
   COLLAPSED_ROWS_SETTING,
   COLUMN_SORT_ORDER,
   COLUMN_SHOW_TOTALS,
+  ROW_SORT_ORDER,
+  METRICS_AS_ROWS_SETTING,
 } from "metabase/lib/data_grid";
 import { TYPE } from "metabase-lib/types/constants";
 
@@ -174,6 +176,8 @@ describe("data_grid", () => {
         columnShowTotals = [],
         showColumnTotals = true,
         showRowTotals = true,
+        rowSorts = [],
+        rowMetrics = false,
       } = {},
     ) => {
       const settings = {
@@ -192,6 +196,8 @@ describe("data_grid", () => {
         [COLLAPSED_ROWS_SETTING]: { value: collapsedRows },
         "pivot.show_row_totals": showRowTotals,
         "pivot.show_column_totals": showColumnTotals,
+        [ROW_SORT_ORDER]: rowSorts,
+        [METRICS_AS_ROWS_SETTING]: rowMetrics,
       };
       data = {
         ...data,
@@ -313,6 +319,24 @@ describe("data_grid", () => {
         multiLevelPivotForIndexes(data, [0], [1], [2, 3]);
       expect(getValues(topHeaderItems)).toEqual(["a", "Metric 1", "Metric 2"]);
       expect(getValues(leftHeaderItems)).toEqual(["b"]);
+      expect(getValues(getRowSection(0, 0))).toEqual(["1", "2"]);
+    });
+
+    it("should handle metrics in rows", () => {
+      const data = makePivotData(
+        [["a", "b", 1, 2]],
+        [
+          D1,
+          D2,
+          { name: "M1", display_name: "Metric 1", base_type: TYPE.Integer },
+          { name: "M2", display_name: "Metric 2", base_type: TYPE.Integer },
+        ],
+      );
+
+      const { topHeaderItems, leftHeaderItems, getRowSection } =
+        multiLevelPivotForIndexes(data, [0], [1], [2, 3], { rowMetrics: true });
+      expect(getValues(topHeaderItems)).toEqual(["a"]);
+      expect(getValues(leftHeaderItems)).toEqual(["b", "Metric 1", "Metric 2"]);
       expect(getValues(getRowSection(0, 0))).toEqual(["1", "2"]);
     });
     it("should work with three levels of row grouping", () => {
@@ -589,6 +613,86 @@ describe("data_grid", () => {
           "2  –  3",
           "1  –  2",
           "0  –  1",
+        ]);
+      });
+
+      it("sorts by row totals by default when metric sorting set", () => {
+        const cols = [D1, D2, M];
+        const primaryGroup = 0;
+        const subtotalOne = 2;
+        const rows = [
+          ["a", "x", 1, primaryGroup],
+          ["a", "y", 2, primaryGroup],
+          ["b", "x", 3, primaryGroup],
+          ["b", "y", 4, primaryGroup],
+          ["a", null, 3, subtotalOne],
+          ["b", null, 7, subtotalOne],
+        ];
+        const data = {
+          rows,
+          cols: [...cols, { name: "pivot-grouping", base_type: TYPE.Text }],
+        };
+
+        const { leftHeaderItems } = multiLevelPivotForIndexes(
+          data,
+          [],
+          [0, 1],
+          [2],
+          {
+            columnSorts: [undefined, undefined],
+            rowSorts: {
+              "[]": { index: "[]", column: 0, direction: "descending" },
+            },
+          },
+        );
+        expect(getValues(leftHeaderItems).slice(0, 4)).toEqual([
+          "b",
+          "y",
+          "x",
+          "Totals for b",
+        ]);
+      });
+
+      it("sorts by row sections", () => {
+        const cols = [D1, D2, M];
+        const primaryGroup = 0;
+        const subtotalOne = 2;
+        const rows = [
+          ["a", "x", 1, primaryGroup],
+          ["a", "y", 2, primaryGroup],
+          ["b", "x", 3, primaryGroup],
+          ["b", "y", 4, primaryGroup],
+          ["a", null, 3, subtotalOne],
+          ["b", null, 7, subtotalOne],
+        ];
+        const data = {
+          rows,
+          cols: [...cols, { name: "pivot-grouping", base_type: TYPE.Text }],
+        };
+
+        const { leftHeaderItems } = multiLevelPivotForIndexes(
+          data,
+          [],
+          [0, 1],
+          [2],
+          {
+            columnSorts: [undefined, undefined],
+            rowSorts: {
+              "[]": { index: "[]", column: 0, direction: "descending" },
+              '["a"]': { index: "[]", column: 0, direction: "ascending" },
+            },
+          },
+        );
+        expect(getValues(leftHeaderItems)).toEqual([
+          "b",
+          "y",
+          "x",
+          "Totals for b",
+          "a",
+          "x",
+          "y",
+          "Totals for a",
+          "Grand totals",
         ]);
       });
     });

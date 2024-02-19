@@ -3,12 +3,15 @@ import type * as React from "react";
 import type { ControlPosition, DraggableBounds } from "react-draggable";
 import Draggable from "react-draggable";
 
+import { ROW_TOTALS_ON_TOP } from "metabase/lib/data_grid";
+
 import { Ellipsified } from "metabase/core/components/Ellipsified";
 import type { VisualizationSettings } from "metabase-types/api";
 
 import { PivotTableCell, ResizeHandle } from "./PivotTable.styled";
+
 import { RowToggleIcon } from "./RowToggleIcon";
-import { LEFT_HEADER_LEFT_SPACING, RESIZE_HANDLE_WIDTH } from "./constants";
+import { LEFT_HEADER_LEFT_SPACING, RESIZE_HANDLE_WIDTH, CELL_HEIGHT } from "./constants";
 import type { HeaderItem, BodyItem, PivotTableClicked } from "./types";
 
 interface CellProps {
@@ -161,6 +164,7 @@ export const LeftHeaderCell = ({
   onResize,
 }: LeftHeaderCellProps) => {
   const { value, isSubtotal, hasSubtotal, depth, path, clicked } = item;
+  const totalsAbove = settings[ROW_TOTALS_ON_TOP];
 
   return (
     <Cell
@@ -175,13 +179,13 @@ export const LeftHeaderCell = ({
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
       icon={
-        (isSubtotal || hasSubtotal) && (
+        (isSubtotal || (hasSubtotal && !totalsAbove)) && (
           <RowToggleIcon
             data-testid={`${item.rawValue}-toggle-button`}
             value={path}
             settings={settings}
             updateSettings={onUpdateVisualizationSettings}
-            hideUnlessCollapsed={isSubtotal}
+            hideUnlessCollapsed={isSubtotal && !totalsAbove}
             rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
           />
         )
@@ -197,6 +201,7 @@ interface BodyCellProps {
   getCellClickHandler: CellClickHandler;
   cellWidths: number[];
   showTooltip?: boolean;
+  rowMetrics?: boolean;
 }
 
 export const BodyCell = ({
@@ -206,26 +211,38 @@ export const BodyCell = ({
   getCellClickHandler,
   cellWidths,
   showTooltip = true,
+  rowMetrics = false,
 }: BodyCellProps) => {
+  const flexDirection = rowMetrics ? "column" : "row";
+
   return (
-    <div style={style} className="flex">
+    <div
+      style={{
+        ...style,
+        flexDirection,
+      }}
+      className="flex"
+    >
       {rowSection.map(
-        ({ value, isSubtotal, clicked, backgroundColor }, index) => (
-          <Cell
-            isNightMode={isNightMode}
-            key={index}
-            style={{
-              flexBasis: cellWidths[index],
-            }}
-            value={value}
-            isEmphasized={isSubtotal}
-            isBold={isSubtotal}
-            showTooltip={showTooltip}
-            isBody
-            onClick={getCellClickHandler(clicked)}
-            backgroundColor={backgroundColor}
-          />
-        ),
+        ({ value, isSubtotal, clicked, backgroundColor }, index) => {
+          const flexBasis = rowMetrics ? CELL_HEIGHT : cellWidths[index];
+          return (
+            <Cell
+              isNightMode={isNightMode}
+              key={index}
+              style={{
+                flexBasis,
+              }}
+              value={value}
+              isEmphasized={isSubtotal}
+              isBold={isSubtotal}
+              showTooltip={showTooltip}
+              isBody
+              onClick={getCellClickHandler(clicked)}
+              backgroundColor={backgroundColor}
+            />
+          );
+        },
       )}
     </div>
   );
