@@ -1,8 +1,9 @@
 import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 
-import { adjustBrightness, alpha, color } from "metabase/lib/colors";
+import { adjustBrightness, alpha, color, darken } from "metabase/lib/colors";
 import type { MantineTheme } from "metabase/ui";
+import { Icon } from "metabase/ui";
 
 import { CELL_HEIGHT, RESIZE_HANDLE_WIDTH } from "./constants";
 
@@ -95,6 +96,14 @@ const getColor = ({
   }
 
   return color(theme.other.table.cell.textColor);
+};
+
+export const SortIcon = styled(Icon)`
+  margin: 4px;
+`;
+
+SortIcon.defaultProps = {
+  size: 8,
 };
 
 export const PivotTableCell = styled.div<PivotTableCellProps>`

@@ -11,6 +11,9 @@ import {
   COLUMN_SORT_ORDER_DESC,
   COLUMN_SPLIT_SETTING,
   isPivotGroupColumn,
+  MEASURES_AS_ROWS_SETTING,
+  ROW_TOTALS_ON_TOP,
+  ROW_SORT_ORDER,
 } from "metabase/lib/data_grid";
 import { formatColumn } from "metabase/lib/formatting";
 import { ChartSettingIconRadio } from "metabase/visualizations/components/settings/ChartSettingIconRadio";
@@ -153,7 +156,22 @@ export const settings = {
     default: true,
     inline: true,
   },
+  [MEASURES_AS_ROWS_SETTING]: {
+    section: t`Columns`,
+    title: t`Show Measures as Rows`,
+    widget: "toggle",
+    default: false,
+    inline: true,
+  },
+  [ROW_TOTALS_ON_TOP]: {
+    section: t`Columns`,
+    title: t`Show Row Totals on Top`,
+    widget: "toggle",
+    default: false,
+    inline: true,
+  },
   "pivot_table.column_widths": {},
+  [ROW_SORT_ORDER]: {},
   [COLUMN_FORMATTING_SETTING]: {
     section: t`Conditional Formatting`,
     widget: ChartSettingsTableFormatting,

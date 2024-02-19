@@ -5,6 +5,7 @@ import { DEFAULT_METABASE_COMPONENT_THEME } from "embedding-sdk/lib/theme";
 import { sumArray } from "metabase/lib/arrays";
 import { isPivotGroupColumn } from "metabase/lib/data_grid";
 import { measureText } from "metabase/lib/measure-text";
+import type { ClickObject } from "metabase/visualizations/types";
 import type StructuredQuery from "metabase-lib/v1/queries/StructuredQuery";
 import { migratePivotColumnSplitSetting } from "metabase-lib/v1/queries/utils/pivot";
 import type {
@@ -26,7 +27,7 @@ import {
   ROW_TOGGLE_ICON_WIDTH,
 } from "./constants";
 import { partitions } from "./partitions";
-import type { CustomColumnWidth, HeaderItem } from "./types";
+import type { CustomColumnWidth, HeaderItem, PivotSetting, RowSectionSortOrder,RowSortOrder } from "./types";
 
 // adds or removes columns from the pivot settings based on the current query
 export function updateValueWithCurrentColumns(
@@ -105,11 +106,75 @@ export function isFormattablePivotColumn(column: DatasetColumn) {
   return column.source === "aggregation";
 }
 
+export function isRowSortClickedObject(
+  clicked?: ClickObject & { rowSort?: RowSectionSortOrder },
+): clicked is ClickObject & { rowSort: RowSectionSortOrder } {
+  if (clicked?.rowSort === undefined) {
+    return false;
+  }
+
+  return true;
+}
+
+function getRowSort(clicked?: ClickObject & { rowSort?: RowSectionSortOrder }) {
+  if (clicked?.rowSort === undefined) {
+    return undefined;
+  }
+
+  const { rowSectionIdx, colIdx, column } =
+    clicked.rowSort as RowSectionSortOrder;
+
+  return {
+    rowSectionIdx,
+    colIdx,
+    column,
+  };
+}
+
+export function updateSort({
+  clicked,
+  previousRowSortOrder,
+  sortDirection,
+}: {
+  clicked: ClickObject | undefined;
+  previousRowSortOrder: RowSortOrder;
+  sortDirection: sortDirections;
+}): RowSortOrder {
+  const sectionSort = getRowSort(clicked);
+
+  if (!sectionSort) {
+    return previousRowSortOrder;
+  }
+
+  if (sortDirection === "clear") {
+    const { [sectionSort.rowSectionIdx]: _, ...newRowSortOrder } =
+      previousRowSortOrder;
+
+    return newRowSortOrder;
+  }
+
+  const newRowSortOrder = {
+    [sectionSort.rowSectionIdx]: {
+      colIdx: sectionSort.colIdx ?? "[]",
+      column: sectionSort.column,
+      direction: sortDirection,
+    },
+  };
+
+  return {
+    ...previousRowSortOrder,
+    ...newRowSortOrder,
+  };
+}
+
+type sortDirections = "ascending" | "descending" | "clear";
+
 interface GetLeftHeaderWidthsProps {
   rowIndexes: number[];
   getColumnTitle: (columnIndex: number) => string;
   leftHeaderItems?: HeaderItem[];
   font: { fontFamily?: string; fontSize?: string };
+  rowMetrics?: boolean;
 }
 
 export function getLeftHeaderWidths({
@@ -117,6 +182,7 @@ export function getLeftHeaderWidths({
   getColumnTitle,
   leftHeaderItems = [],
   font,
+  rowMetrics = false,
 }: GetLeftHeaderWidthsProps) {
   const {
     fontFamily = "var(--mb-default-font-family)",
@@ -124,7 +190,6 @@ export function getLeftHeaderWidths({
   } = font ?? {};
 
   const cellValues = getColumnValues(leftHeaderItems);
-
   const widths = rowIndexes.map((rowIndex, depthIndex) => {
     const computedHeaderWidth = Math.ceil(
       measureText(getColumnTitle(rowIndex), {
@@ -163,9 +228,11 @@ export function getLeftHeaderWidths({
     return computedWidth;
   });
 
-  const total = sumArray(widths);
+  const valueHeaderWidths = rowMetrics ? [DEFAULT_CELL_WIDTH] : [];
+  const widthsWithValues = [...widths, ...valueHeaderWidths];
+  const total = sumArray(widthsWithValues);
 
-  return { leftHeaderWidths: widths, totalLeftHeaderWidths: total };
+  return { leftHeaderWidths: widthsWithValues, totalLeftHeaderWidths: total };
 }
 
 type ColumnValueInfo = {
@@ -240,17 +307,38 @@ export const leftHeaderCellSizeAndPositionGetter = (
   item: HeaderItem,
   leftHeaderWidths: number[],
   rowIndexes: number[],
+  rowMetrics = false,
 ) => {
-  const { offset, span, depth, maxDepthBelow } = item;
+  const { offset, span, depth, maxDepthBelow, isValueRow, isSubtotal } = item;
 
-  const columnsToSpan = rowIndexes.length - depth - maxDepthBelow;
+  if (isValueRow) {
+    const spanWidth = 0;
+    const depth = rowIndexes.length;
+    const columnPadding = depth === 0 ? LEFT_HEADER_LEFT_SPACING : 0;
+    const columnWidth =
+      leftHeaderWidths[leftHeaderWidths.length - 1] ?? DEFAULT_CELL_WIDTH;
+
+    return {
+      height: span * CELL_HEIGHT,
+      width: columnWidth + spanWidth + columnPadding,
+      x:
+        sumArray(leftHeaderWidths.slice(0, depth)) +
+        (depth > 0 ? LEFT_HEADER_LEFT_SPACING : 0),
+      y: offset * CELL_HEIGHT,
+    };
+  }
+
+  const columnsToSpan =
+    isSubtotal && rowMetrics
+      ? rowIndexes.length - depth
+      : rowIndexes.length - depth - maxDepthBelow;
 
   // add up all the widths of the columns, other than itself, that this cell spans
   const spanWidth = sumArray(
     leftHeaderWidths.slice(depth + 1, depth + columnsToSpan),
   );
   const columnPadding = depth === 0 ? LEFT_HEADER_LEFT_SPACING : 0;
-  const columnWidth = leftHeaderWidths[depth];
+  const columnWidth = leftHeaderWidths[depth] ?? DEFAULT_CELL_WIDTH;
 
   return {
     height: span * CELL_HEIGHT,

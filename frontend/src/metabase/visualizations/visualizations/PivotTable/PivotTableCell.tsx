@@ -5,12 +5,15 @@ import Draggable from "react-draggable";
 
 import { Ellipsified } from "metabase/core/components/Ellipsified";
 import CS from "metabase/css/core/index.css";
+import { darken } from "metabase/lib/colors";
+import { ROW_TOTALS_ON_TOP } from "metabase/lib/data_grid";
+import type { ClickObject } from "metabase/visualizations/types";
 import type { VisualizationSettings } from "metabase-types/api";
 
-import { PivotTableCell, ResizeHandle } from "./PivotTable.styled";
+import { PivotTableCell, ResizeHandle, SortIcon } from "./PivotTable.styled";
 import { RowToggleIcon } from "./RowToggleIcon";
-import { LEFT_HEADER_LEFT_SPACING, RESIZE_HANDLE_WIDTH } from "./constants";
-import type { BodyItem, HeaderItem, PivotTableClicked } from "./types";
+import { LEFT_HEADER_LEFT_SPACING, RESIZE_HANDLE_WIDTH, CELL_HEIGHT } from "./constants";
+import type { HeaderItem, BodyItem, RowSectionSortOrder } from "./types";
 
 interface CellProps {
   value: React.ReactNode;
@@ -43,6 +46,7 @@ interface CellProps {
   onClick?: ((e: React.MouseEvent) => void) | undefined;
   onResize?: (newWidth: number) => void;
   showTooltip?: boolean;
+  sortIcon?: React.ReactNode;
 }
 
 export function Cell({
@@ -60,6 +64,7 @@ export function Cell({
   onClick,
   onResize,
   showTooltip = true,
+  sortIcon,
 }: CellProps) {
   return (
     <PivotTableCell
@@ -74,18 +79,23 @@ export function Cell({
         ...style,
         ...(backgroundColor
           ? {
-              backgroundColor,
+              backgroundColor: isEmphasized
+                ? darken(backgroundColor)
+                : backgroundColor,
             }
           : {}),
       }}
-      onClick={onClick}
     >
       <>
         <div
           className={cx(CS.px1, CS.flex, CS.alignCenter, {
             [CS.justifyEnd]: isBody,
           })}
+          onClick={onClick}
         >
+          {sortIcon && (
+            <div className={cx(CS.flex, CS.alignStart)}>{sortIcon}</div>
+          )}
           <Ellipsified showTooltip={showTooltip}>{value}</Ellipsified>
           {icon && <div className={CS.pl1}>{icon}</div>}
         </div>
@@ -113,8 +123,31 @@ export function Cell({
 }
 
 type CellClickHandler = (
-  clicked: PivotTableClicked,
-) => ((e: React.MouseEvent) => void) | undefined;
+  clicked: ClickObject | undefined,
+) => ((e: React.SyntheticEvent) => void) | undefined;
+
+function addRowSectionSort(
+  clicked: (ClickObject & { rowSort?: RowSectionSortOrder }) | undefined,
+  column?: number,
+): (ClickObject & { rowSort?: RowSectionSortOrder }) | undefined {
+  if (!clicked) {
+    return;
+  }
+
+  const rowSort = clicked?.rowSort;
+
+  if (!rowSort) {
+    return clicked;
+  }
+
+  return {
+    ...clicked,
+    rowSort: {
+      ...rowSort,
+      column,
+    },
+  };
+}
 
 interface TopHeaderCellProps {
   item: HeaderItem;
@@ -131,7 +164,19 @@ export const TopHeaderCell = ({
   getCellClickHandler,
   onResize,
 }: TopHeaderCellProps) => {
-  const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
+  const {
+    value,
+    hasChildren,
+    clicked,
+    isSubtotal,
+    maxDepthBelow,
+    span,
+    levelSort,
+  } = item;
+
+  const isSorted = levelSort !== undefined;
+  const iconName =
+    levelSort?.direction === "descending" ? "chevrondown" : "chevronup";
 
   return (
     <Cell
@@ -145,6 +190,7 @@ export const TopHeaderCell = ({
       isBold={isSubtotal}
       onClick={getCellClickHandler(clicked)}
       onResize={span < 2 ? onResize : undefined}
+      sortIcon={isSorted && <SortIcon name={iconName} />}
     />
   );
 };
@@ -166,6 +212,7 @@ export const LeftHeaderCell = ({
   onResize,
 }: LeftHeaderCellProps) => {
   const { value, isSubtotal, hasSubtotal, depth, path, clicked } = item;
+  const totalsAbove = settings[ROW_TOTALS_ON_TOP];
 
   return (
     <Cell
@@ -180,13 +227,13 @@ export const LeftHeaderCell = ({
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
       icon={
-        (isSubtotal || hasSubtotal) && (
+        (isSubtotal || (hasSubtotal && !totalsAbove)) && (
           <RowToggleIcon
             data-testid={`${item.rawValue}-toggle-button`}
             value={path}
             settings={settings}
             updateSettings={onUpdateVisualizationSettings}
-            hideUnlessCollapsed={isSubtotal}
+            hideUnlessCollapsed={isSubtotal && !totalsAbove}
             rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
           />
         )
@@ -202,6 +249,7 @@ interface BodyCellProps {
   getCellClickHandler: CellClickHandler;
   cellWidths: number[];
   showTooltip?: boolean;
+  rowMetrics?: boolean;
 }
 
 export const BodyCell = ({
@@ -211,26 +259,49 @@ export const BodyCell = ({
   getCellClickHandler,
   cellWidths,
   showTooltip = true,
+  rowMetrics = false,
 }: BodyCellProps) => {
+  const flexDirection = rowMetrics ? "column" : "row";
+
   return (
-    <div style={style} className={CS.flex}>
+    <div style={{ ...style, flexDirection }} className={CS.flex}>
       {rowSection.map(
-        ({ value, isSubtotal, clicked, backgroundColor }, index) => (
-          <Cell
-            isNightMode={isNightMode}
-            key={index}
-            style={{
-              flexBasis: cellWidths[index],
-            }}
-            value={value}
-            isEmphasized={isSubtotal}
-            isBold={isSubtotal}
-            showTooltip={showTooltip}
-            isBody
-            onClick={getCellClickHandler(clicked)}
-            backgroundColor={backgroundColor}
-          />
-        ),
+        (
+          {
+            value,
+            isSubtotal,
+            clicked,
+            backgroundColor,
+            levelSort,
+            isGrandTotal,
+            isCollapsed,
+          },
+          index,
+        ) => {
+          const flexBasis = rowMetrics ? CELL_HEIGHT : cellWidths[index];
+          const isSorted =
+            levelSort?.column === index && !isGrandTotal && !isCollapsed;
+          const iconName =
+            levelSort?.direction === "descending" ? "chevrondown" : "chevronup";
+
+          return (
+            <Cell
+              isNightMode={isNightMode}
+              key={index}
+              style={{
+                flexBasis,
+              }}
+              value={value}
+              isEmphasized={isSubtotal}
+              isBold={isSubtotal}
+              showTooltip={showTooltip}
+              isBody
+              onClick={getCellClickHandler(addRowSectionSort(clicked, index))}
+              backgroundColor={backgroundColor}
+              sortIcon={isSorted && <SortIcon name={iconName} />}
+            />
+          );
+        },
       )}
     </div>
   );

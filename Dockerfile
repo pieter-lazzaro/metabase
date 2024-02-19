@@ -54,5 +54,6 @@ COPY bin/docker/run_metabase.sh /app/
 # expose our default runtime port
 EXPOSE 3000
 
+HEALTHCHECK --start-period=300s CMD curl --fail localhost:3000/api/health || exit 1
 # run it
 ENTRYPOINT ["/app/run_metabase.sh"]

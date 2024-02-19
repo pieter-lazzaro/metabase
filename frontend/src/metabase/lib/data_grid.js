@@ -15,6 +15,9 @@ export const COLLAPSED_ROWS_SETTING = "pivot_table.collapsed_rows";
 export const COLUMN_SPLIT_SETTING = "pivot_table.column_split";
 export const COLUMN_SHOW_TOTALS = "pivot_table.column_show_totals";
 export const COLUMN_SORT_ORDER = "pivot_table.column_sort_order";
+export const ROW_SORT_ORDER = "pivot_table.row_sort_order";
+export const ROW_TOTALS_ON_TOP = "pivot_table.row_totals_on_top";
+export const MEASURES_AS_ROWS_SETTING = "pivot_table.measures_as_rows";
 export const COLUMN_SORT_ORDER_ASC = "ascending";
 export const COLUMN_SORT_ORDER_DESC = "descending";
 
@@ -112,6 +115,16 @@ export function multiLevelPivot(data, settings) {
     }
   }
 
+  if (settings[ROW_SORT_ORDER]) {
+    const valueGetter = getValueByIndex(
+      subtotalValues,
+      rowColumnIndexes,
+      columnColumnIndexes,
+    );
+
+    sortTreeByValues([], rowColumnTree, valueGetter, settings[ROW_SORT_ORDER]);
+  }
+
   // pivot tables have a lot of repeated values, so we use memoized formatters for each column
   const [valueFormatters, topIndexFormatters, leftIndexFormatters] = [
     valueColumnIndexes,
@@ -148,27 +161,25 @@ export function multiLevelPivot(data, settings) {
   const columnIndex = addEmptyIndexItem(
     formattedColumnTreeWithoutValues.flatMap(root => enumeratePaths(root)),
   );
-  const valueColumns = valueColumnIndexes.map(index => [
-    columns[index],
-    columnSettings[index],
-  ]);
-  const formattedColumnTree = addValueColumnNodes(
-    formattedColumnTreeWithoutValues,
-    valueColumns,
-  );
 
   const leftIndexColumns = rowColumnIndexes.map(index => columns[index]);
   const formattedRowTreeWithoutSubtotals = formatValuesInTree(
     rowColumnTree,
     leftIndexFormatters,
     leftIndexColumns,
+    [],
   );
   const showSubtotalsByColumn = rowColumnIndexes.map(
     index => getIn(columnSettings, [index, COLUMN_SHOW_TOTALS]) !== false,
   );
 
-  const formattedRowTree = settings["pivot.show_column_totals"]
-    ? addSubtotals(formattedRowTreeWithoutSubtotals, showSubtotalsByColumn)
+  const formattedRowTreeWithoutValues = settings["pivot.show_column_totals"]
+    ? addSubtotals(
+        formattedRowTreeWithoutSubtotals,
+        showSubtotalsByColumn,
+        settings[MEASURES_AS_ROWS_SETTING],
+        settings[ROW_TOTALS_ON_TOP],
+      )
     : formattedRowTreeWithoutSubtotals;
 
   if (
@@ -176,7 +187,7 @@ export function multiLevelPivot(data, settings) {
     settings["pivot.show_column_totals"]
   ) {
     // if there are multiple columns, we should add another for row totals
-    formattedRowTree.push({
+    formattedRowTreeWithoutValues.push({
       value: t`Grand totals`,
       isSubtotal: true,
       isGrandTotal: true,
@@ -184,9 +195,38 @@ export function multiLevelPivot(data, settings) {
     });
   }
 
+  if (
+    settings[MEASURES_AS_ROWS_SETTING] &&
+    formattedColumnTreeWithoutValues.length === 0
+  ) {
+    formattedColumnTreeWithoutValues.push({
+      value: t`Values`,
+      children: [],
+    });
+  }
+
+  const rowSortOrder = settings[ROW_SORT_ORDER] ?? {};
+
   const rowIndex = addEmptyIndexItem(
-    formattedRowTree.flatMap(root => enumeratePaths(root)),
+    formattedRowTreeWithoutValues.flatMap(root => enumeratePaths(root)),
   );
+
+  const valueColumns = valueColumnIndexes.map(index => [
+    columns[index],
+    columnSettings[index],
+  ]);
+
+  const formattedRowTree = !settings[MEASURES_AS_ROWS_SETTING]
+    ? formattedRowTreeWithoutValues
+    : addValueRowNodes(formattedRowTreeWithoutValues, valueColumns);
+
+  const formattedColumnTree = settings[MEASURES_AS_ROWS_SETTING]
+    ? formattedColumnTreeWithoutValues
+    : addValueColumnNodes(
+        formattedColumnTreeWithoutValues,
+        valueColumns,
+        rowSortOrder,
+      );
 
   const leftHeaderItems = treeToArray(formattedRowTree.flat());
   const topHeaderItems = treeToArray(formattedColumnTree.flat());
@@ -207,6 +247,11 @@ export function multiLevelPivot(data, settings) {
     columnIndex,
     rowIndex,
     colorGetter,
+    valueColumns: valueColumnIndexes.map(
+      index => columnSettings[index]?.column,
+    ),
+    rowSortOrder,
+    collapsedSubtotals,
   });
 
   return {
@@ -219,6 +264,7 @@ export function multiLevelPivot(data, settings) {
     rowIndexes: rowColumnIndexes,
     columnIndexes: columnColumnIndexes,
     valueIndexes: valueColumnIndexes,
+    rowMetrics: settings[MEASURES_AS_ROWS_SETTING],
   };
 }
 
@@ -280,22 +326,42 @@ function createRowSectionGetter({
   columnIndex,
   rowIndex,
   colorGetter,
+  rowMetrics,
+  valueColumns,
+  rowSortOrder,
+  collapsedSubtotals = [],
 }) {
   const formatValues = values =>
     values === undefined
       ? Array(valueFormatters.length).fill({ value: null })
       : values.map((v, i) => ({ value: valueFormatters[i](v) }));
-  const getSubtotals = (breakoutIndexes, values, otherAttrs) =>
-    formatValues(
-      getIn(
-        subtotalValues,
-        [breakoutIndexes, values].map(a =>
-          JSON.stringify(
-            _.sortBy(a, (_value, index) => breakoutIndexes[index]),
-          ),
-        ),
+  const getSubtotals = (breakoutIndexes, values, otherAttrs) => {
+    const subtotals = getIn(
+      subtotalValues,
+      [breakoutIndexes, values].map(a =>
+        JSON.stringify(_.sortBy(a, (_value, index) => breakoutIndexes[index])),
       ),
-    ).map(value => ({ ...value, isSubtotal: true, ...otherAttrs }));
+    );
+
+    const formattedSubtotals = formatValues(subtotals);
+    return formattedSubtotals.map((value, index) => {
+      return subtotals === undefined
+        ? {
+            ...value,
+            ...otherAttrs,
+          }
+        : {
+            ...value,
+            ...otherAttrs,
+            isSubtotal: true,
+            backgroundColor: colorGetter(
+              subtotals[index],
+              value.rowIndex,
+              valueColumns[index].name,
+            ),
+          };
+    });
+  };
 
   const getter = (columnIdx, rowIdx) => {
     const columnValues = columnIndex[columnIdx] || [];
@@ -309,8 +375,38 @@ function createRowSectionGetter({
       const rowIndexes = rowColumnIndexes.slice(0, rowValues.length);
       const columnIndexes = columnColumnIndexes.slice(0, columnValues.length);
       const indexes = columnIndexes.concat(rowIndexes);
-      const otherAttrs = rowValues.length === 0 ? { isGrandTotal: true } : {};
-      return getSubtotals(indexes, indexValues, otherAttrs);
+      const isCollapsed =
+        // the specific path is collapsed
+        collapsedSubtotals.includes(JSON.stringify(rowValues)) ||
+        // the entire column is collapsed
+        collapsedSubtotals.includes(JSON.stringify(rowValues.length));
+      const levelSort = {
+        current: getLevelSort(rowSortOrder, rowValues, false),
+        rowSectionIdx: JSON.stringify(rowValues),
+        colIdx: JSON.stringify(columnValues),
+      };
+
+      const otherAttrs = {
+        isCollapsed,
+        isGrandTotal: rowValues.length === 0,
+        levelSort:
+          levelSort.current?.colIdx === levelSort.colIdx
+            ? levelSort.current
+            : undefined,
+        isSubtotal: true,
+        clicked: !isCollapsed
+          ? {
+              rowSort: {
+                rowSectionIdx: JSON.stringify(rowValues),
+                colIdx: JSON.stringify(columnValues),
+              },
+            }
+          : undefined,
+      };
+
+      return getSubtotals(indexes, indexValues, {
+        ...otherAttrs,
+      });
     }
     const { values, data, dimensions, valueColumns } =
       valuesByKey[JSON.stringify(indexValues)] || {};
@@ -333,13 +429,13 @@ function createRowSectionGetter({
 
 // Given a tree representation of an index, enumeratePaths produces a list of all paths to leaf nodes
 function enumeratePaths(
-  { rawValue, isGrandTotal, children, isValueColumn },
+  { rawValue, isGrandTotal, children, isValueColumn, isValueRow },
   path = [],
 ) {
   if (isGrandTotal) {
     return [[]];
   }
-  if (isValueColumn) {
+  if (isValueColumn || isValueRow) {
     return [path];
   }
   const pathWithValue = [...path, rawValue];
@@ -352,36 +448,152 @@ function formatValuesInTree(
   rowColumnTree,
   [formatter, ...formatters],
   [column, ...columns],
+  rowSectionIdx,
 ) {
-  return rowColumnTree.map(({ value, children, ...rest }) => ({
-    ...rest,
-    value: formatter(value),
-    rawValue: value,
-    children: formatValuesInTree(children, formatters, columns),
-    clicked: { value, column, data: [{ value, col: column }] },
-  }));
+  return rowColumnTree.map(({ value, children, ...rest }) => {
+    const clicked = rowSectionIdx
+      ? {
+          value,
+          column,
+          rowSort: {
+            rowSectionIdx: JSON.stringify(rowSectionIdx),
+          },
+        }
+      : { value, column };
+    return {
+      ...rest,
+      value: formatter(value),
+      rawValue: value,
+      children: formatValuesInTree(
+        children,
+        formatters,
+        columns,
+        rowSectionIdx ? [...rowSectionIdx, value] : undefined,
+      ),
+      clicked,
+    };
+  });
 }
 
 // This might add value column(s) to the bottom of the top header tree.
 // We display the value column names if there are multiple
 // or if there are no columns pivoted to the top header.
-function addValueColumnNodes(nodes, valueColumns) {
-  const leafNodes = valueColumns.map(([column, columnSettings]) => {
+function addValueColumnNodes(nodes, valueColumns, rowSortOrder) {
+  const levelSort = getLevelSort(rowSortOrder, [], false);
+
+  const leafNodes = valueColumns.map(([column, columnSettings], index) => {
     return {
       value: columnSettings.column_title || formatColumn(column),
       children: [],
       isValueColumn: true,
+      levelSort:
+        (!levelSort?.colIdx || levelSort?.colIdx === "[]") &&
+        levelSort?.column === index
+          ? levelSort
+          : undefined,
+      clicked: {
+        rowSort: {
+          rowSectionIdx: "[]",
+          column: index,
+        },
+      },
+    };
+  });
+
+  if (nodes.length === 0) {
+    return leafNodes;
+  }
+
+  function updateNode(colIdx = []) {
+    return node => {
+      const newColIdx = node.rawValue ? [...colIdx, node.rawValue] : colIdx;
+
+      const childLeafNodes =
+        valueColumns.length <= 1
+          ? []
+          : leafNodes.map((leafNode, index) => {
+              const rowSort = {
+                ...(leafNode.clicked?.rowSort ?? {}),
+                colIdx: JSON.stringify(newColIdx),
+              };
+
+              return {
+                ...leafNode,
+                clicked: {
+                  ...leafNode.clicked,
+                  rowSort,
+                },
+                levelSort:
+                  levelSort?.colIdx === rowSort.colIdx &&
+                  levelSort?.column === rowSort.column
+                    ? levelSort
+                    : undefined,
+              };
+            });
+
+      const children =
+        node.children.length === 0
+          ? childLeafNodes
+          : node.children.map(updateNode(newColIdx));
+      const clicked =
+        valueColumns.length <= 1 && node.children.length === 0
+          ? {
+              ...node.clicked,
+              rowSort: {
+                rowSectionIdx: "[]",
+                colIdx: JSON.stringify(newColIdx),
+                column: 0,
+              },
+            }
+          : node.clicked;
+      return {
+        ...node,
+        children,
+        clicked,
+        levelSort:
+          valueColumns.length <= 1 &&
+          node.children.length === 0 &&
+          levelSort?.colIdx === JSON.stringify(newColIdx) &&
+          levelSort?.column === 0
+            ? levelSort
+            : undefined,
+      };
+    };
+  }
+  return nodes.map(updateNode([]));
+}
+
+// This might add value row(s) to the bottom of the left header tree.
+// We display the value row names if there are multiple
+// or if there are no rows pivoted to the left header.
+function addValueRowNodes(nodes, valueRows) {
+  const leafNodes = valueRows.map(([column, columnSettings]) => {
+    return {
+      value: columnSettings.column_title || formatColumn(column),
+      children: [],
+      isValueRow: true,
     };
   });
   if (nodes.length === 0) {
     return leafNodes;
   }
-  if (valueColumns.length <= 1) {
+  if (valueRows.length <= 1) {
     return nodes;
   }
   function updateNode(node) {
+    if (node.isSubtotal) {
+      leafNodes.map(node => ({
+        ...node,
+        isSubtotal: true,
+      }));
+    }
     const children =
-      node.children.length === 0 ? leafNodes : node.children.map(updateNode);
+      node.children.length === 0
+        ? leafNodes.map(leafNode => ({
+            ...leafNode,
+            isSubtotal: node.isSubtotal,
+          }))
+        : node.children.map(updateNode);
     return { ...node, children };
   }
   return nodes.map(updateNode);
@@ -389,7 +601,12 @@ function addValueColumnNodes(nodes, valueColumns) {
 
 // This inserts nodes into the left header tree for subtotals.
 // We also mark nodes with `hasSubtotal` to display collapsing UI
-function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
+function addSubtotals(
+  rowColumnTree,
+  showSubtotalsByColumn,
+  rowMetrics = false,
+  totalsAbove = false,
+) {
   // For top-level items we want to show subtotal even if they have only one child
   // Except the case when top-level items have flat structure
   // (meaning all of the items have just one child)
@@ -401,6 +618,8 @@ function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
   return rowColumnTree.flatMap(item =>
     addSubtotal(item, showSubtotalsByColumn, {
       shouldShowSubtotal: notFlat || item.children.length > 1,
+      rowMetrics,
+      totalsAbove,
     }),
   );
 }
@@ -408,7 +627,7 @@ function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
 function addSubtotal(
   item,
   [isSubtotalEnabled, ...showSubtotalsByColumn],
-  { shouldShowSubtotal = false } = {},
+  { shouldShowSubtotal = false, rowMetrics = false, totalsAbove = false } = {},
 ) {
   const hasSubtotal = isSubtotalEnabled && shouldShowSubtotal;
   const subtotal = hasSubtotal
@@ -416,15 +635,38 @@ function addSubtotal(
         {
           value: t`Totals for ${item.value}`,
           rawValue: item.rawValue,
+          isCollapsed: item.isCollapsed,
           span: 1,
           isSubtotal: true,
           children: [],
+          clicked: item.clicked,
         },
       ]
     : [];
+
   if (item.isCollapsed) {
     return subtotal;
   }
+
+  if (totalsAbove) {
+    const node = {
+      ...item,
+      hasSubtotal,
+      children: item.children.flatMap(child =>
+        // add subtotals until the last level
+        child.children.length > 0
+          ? addSubtotal(child, showSubtotalsByColumn, {
+              shouldShowSubtotal:
+                child.children.length > 1 || child.isCollapsed,
+              rowMetrics,
+              totalsAbove,
+            })
+          : child,
+      ),
+    };
+    return [...subtotal, node];
+  }
+
   const node = {
     ...item,
     hasSubtotal,
@@ -433,6 +675,8 @@ function addSubtotal(
       child.children.length > 0
         ? addSubtotal(child, showSubtotalsByColumn, {
             shouldShowSubtotal: child.children.length > 1 || child.isCollapsed,
+            rowMetrics,
+            totalsAbove,
           })
         : child,
     ),
@@ -493,6 +737,85 @@ function sortLevelOfTree(array, { [COLUMN_SORT_ORDER]: sortOrder } = {}) {
   });
 }
 
+function getValueByIndex(
+  subtotalValues,
+  rowColumnIndexes,
+  columnColumnIndexes,
+) {
+  return (rowIndexValue, columnIndexValue) => {
+    const values = [...columnIndexValue, ...rowIndexValue];
+
+    const rowIndexes = rowColumnIndexes.slice(0, rowIndexValue.length);
+    const columnIndexes = columnColumnIndexes.slice(0, columnIndexValue.length);
+    const indexes = columnIndexes.concat(rowIndexes);
+    // const path = [JSON.stringify(indexes), JSON.stringify(values)];
+    const path = [indexes, values].map(a =>
+      JSON.stringify(_.sortBy(a, (_value, index) => indexes[index])),
+    );
+    return getIn(subtotalValues, path);
+  };
+}
+
+function getLevelSort(sortOrder, prefix = [], descend = true) {
+  const levelKey = JSON.stringify(prefix);
+  const levelSort = sortOrder[levelKey];
+
+  if (levelSort) {
+    return levelSort;
+  }
+
+  if (prefix.length === 0 || !descend) {
+    return;
+  }
+
+  return getLevelSort(sortOrder, prefix.slice(0, -1));
+}
+
+function sortTreeByValues(prefix, rows, getter, sortOrder) {
+  for (const row of rows) {
+    if (row.children?.length > 0) {
+      sortTreeByValues([...prefix, row.value], row.children, getter, sortOrder);
+    }
+  }
+
+  const levelSort = getLevelSort(sortOrder, prefix);
+
+  if (!levelSort) {
+    return;
+  }
+
+  const colIndex = levelSort.colIdx ? JSON.parse(levelSort.colIdx) : [];
+
+  rows.sort((a, b) => {
+    const aValues = getter([...prefix, a.value], colIndex);
+    const bValues = getter([...prefix, b.value], colIndex);
+    const aValue =
+      levelSort.column === undefined || aValues === undefined
+        ? a.value
+        : aValues[levelSort.column];
+
+    const bValue =
+      levelSort.column === undefined || bValues === undefined
+        ? b.value
+        : bValues[levelSort.column];
+
+    if (aValue === bValue) {
+      return 0;
+    }
+    // by default use "<" to compare values
+    let result = aValue < bValue ? -1 : 1;
+    // strings should use localeCompare to handle accents, etc
+    if (typeof aValue === "string") {
+      result = aValue.localeCompare(bValue);
+    }
+    // flip the comparison for descending
+    if (levelSort.direction === COLUMN_SORT_ORDER_DESC) {
+      result *= -1;
+    }
+    return result;
+  });
+}
+
 // Take a tree and produce a flat list used to layout the top/left headers.
 // We track the depth, offset, etc to know how to line items up in the headers.
 function treeToArray(nodes) {
@@ -507,15 +830,21 @@ function treeToArray(nodes) {
       children,
       rawValue,
       isGrandTotal,
+      isSubtotal,
       isValueColumn,
+      isValueRow,
       ...rest
     } of nodes) {
       const pathWithValue =
-        isValueColumn || isGrandTotal ? null : [...path, rawValue];
+        isValueColumn || isValueRow || isGrandTotal
+          ? null
+          : [...path, rawValue];
       const item = {
         ...rest,
         rawValue,
         isGrandTotal,
+        isSubtotal,
+        isValueRow,
         depth,
         offset,
         hasChildren: children.length > 0,
