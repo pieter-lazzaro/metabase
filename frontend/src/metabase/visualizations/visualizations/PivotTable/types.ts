@@ -19,6 +19,7 @@ export interface HeaderItem {
   hasSubtotal?: boolean;
   isSubtotal?: boolean;
   isGrandTotal?: boolean;
+  isValueRow?: boolean;
 
   depth: number;
   maxDepthBelow: number;

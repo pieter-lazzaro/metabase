@@ -11,6 +11,8 @@ import {
   COLUMN_SHOW_TOTALS,
   COLUMN_FORMATTING_SETTING,
   isPivotGroupColumn,
+  METRICS_AS_ROWS_SETTING,
+  ROW_TOTALS_ON_TOP,
 } from "metabase/lib/data_grid";
 import { formatColumn } from "metabase/lib/formatting";
 import { ChartSettingIconRadio } from "metabase/visualizations/components/settings/ChartSettingIconRadio";
@@ -143,6 +145,20 @@ export const settings = {
     title: t`Show column totals`,
     widget: "toggle",
     default: true,
+    inline: true,
+  },
+  [METRICS_AS_ROWS_SETTING]: {
+    section: t`Columns`,
+    title: t`Show Metrics in Rows`,
+    widget: "toggle",
+    default: false,
+    inline: true,
+  },
+  [ROW_TOTALS_ON_TOP]: {
+    section: t`Columns`,
+    title: t`Show Row Totals on Top`,
+    widget: "toggle",
+    default: false,
     inline: true,
   },
   "pivot_table.column_widths": {},

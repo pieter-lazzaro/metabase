@@ -97,6 +97,7 @@ interface GetLeftHeaderWidthsProps {
   getColumnTitle: (columnIndex: number) => string;
   leftHeaderItems?: HeaderItem[];
   fontFamily?: string;
+  rowMetrics?: boolean;
 }
 
 export function getLeftHeaderWidths({
@@ -104,9 +105,9 @@ export function getLeftHeaderWidths({
   getColumnTitle,
   leftHeaderItems = [],
   fontFamily = "Lato",
+  rowMetrics = false,
 }: GetLeftHeaderWidthsProps) {
   const cellValues = getColumnValues(leftHeaderItems);
-
   const widths = rowIndexes.map((rowIndex, depthIndex) => {
     const computedHeaderWidth = Math.ceil(
       measureText(getColumnTitle(rowIndex), {
@@ -145,9 +146,11 @@ export function getLeftHeaderWidths({
     return computedWidth;
   });
 
-  const total = sumArray(widths);
+  const valueHeaderWidths = rowMetrics ? [DEFAULT_CELL_WIDTH] : [];
+  const widthsWithValues = [...widths, ...valueHeaderWidths];
+  const total = sumArray(widthsWithValues);
 
-  return { leftHeaderWidths: widths, totalLeftHeaderWidths: total };
+  return { leftHeaderWidths: widthsWithValues, totalLeftHeaderWidths: total };
 }
 
 type ColumnValueInfo = {
@@ -229,17 +232,38 @@ export const leftHeaderCellSizeAndPositionGetter = (
   item: HeaderItem,
   leftHeaderWidths: number[],
   rowIndexes: number[],
+  rowMetrics = false,
 ) => {
-  const { offset, span, depth, maxDepthBelow } = item;
+  const { offset, span, depth, maxDepthBelow, isValueRow, isSubtotal } = item;
 
-  const columnsToSpan = rowIndexes.length - depth - maxDepthBelow;
+  if (isValueRow) {
+    const spanWidth = 0;
+    const depth = rowIndexes.length;
+    const columnPadding = depth === 0 ? LEFT_HEADER_LEFT_SPACING : 0;
+    const columnWidth =
+      leftHeaderWidths[leftHeaderWidths.length - 1] ?? DEFAULT_CELL_WIDTH;
+
+    return {
+      height: span * CELL_HEIGHT,
+      width: columnWidth + spanWidth + columnPadding,
+      x:
+        sumArray(leftHeaderWidths.slice(0, depth)) +
+        (depth > 0 ? LEFT_HEADER_LEFT_SPACING : 0),
+      y: offset * CELL_HEIGHT,
+    };
+  }
+
+  const columnsToSpan =
+    isSubtotal && rowMetrics
+      ? rowIndexes.length - depth
+      : rowIndexes.length - depth - maxDepthBelow;
 
   // add up all the widths of the columns, other than itself, that this cell spans
   const spanWidth = sumArray(
     leftHeaderWidths.slice(depth + 1, depth + columnsToSpan),
   );
   const columnPadding = depth === 0 ? LEFT_HEADER_LEFT_SPACING : 0;
-  const columnWidth = leftHeaderWidths[depth];
+  const columnWidth = leftHeaderWidths[depth] ?? DEFAULT_CELL_WIDTH;
 
   return {
     height: span * CELL_HEIGHT,

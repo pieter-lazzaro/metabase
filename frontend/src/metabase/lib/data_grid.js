@@ -14,6 +14,8 @@ export const COLLAPSED_ROWS_SETTING = "pivot_table.collapsed_rows";
 export const COLUMN_SPLIT_SETTING = "pivot_table.column_split";
 export const COLUMN_SHOW_TOTALS = "pivot_table.column_show_totals";
 export const COLUMN_SORT_ORDER = "pivot_table.column_sort_order";
+export const ROW_TOTALS_ON_TOP = "pivot_table.row_totals_on_top";
+export const METRICS_AS_ROWS_SETTING = "pivot_table.metrics_as_rows";
 export const COLUMN_SORT_ORDER_ASC = "ascending";
 export const COLUMN_SORT_ORDER_DESC = "descending";
 
@@ -146,14 +148,6 @@ export function multiLevelPivot(data, settings) {
   const columnIndex = addEmptyIndexItem(
     formattedColumnTreeWithoutValues.flatMap(root => enumeratePaths(root)),
   );
-  const valueColumns = valueColumnIndexes.map(index => [
-    columns[index],
-    columnSettings[index],
-  ]);
-  const formattedColumnTree = addValueColumnNodes(
-    formattedColumnTreeWithoutValues,
-    valueColumns,
-  );
 
   const leftIndexColumns = rowColumnIndexes.map(index => columns[index]);
   const formattedRowTreeWithoutSubtotals = formatValuesInTree(
@@ -165,8 +159,13 @@ export function multiLevelPivot(data, settings) {
     index => getIn(columnSettings, [index, COLUMN_SHOW_TOTALS]) !== false,
   );
 
-  const formattedRowTree = settings["pivot.show_column_totals"]
-    ? addSubtotals(formattedRowTreeWithoutSubtotals, showSubtotalsByColumn)
+  const formattedRowTreeWithoutValues = settings["pivot.show_column_totals"]
+    ? addSubtotals(
+        formattedRowTreeWithoutSubtotals,
+        showSubtotalsByColumn,
+        settings[METRICS_AS_ROWS_SETTING],
+        settings[ROW_TOTALS_ON_TOP],
+      )
     : formattedRowTreeWithoutSubtotals;
 
   if (
@@ -174,7 +173,7 @@ export function multiLevelPivot(data, settings) {
     settings["pivot.show_column_totals"]
   ) {
     // if there are multiple columns, we should add another for row totals
-    formattedRowTree.push({
+    formattedRowTreeWithoutValues.push({
       value: t`Grand totals`,
       isSubtotal: true,
       isGrandTotal: true,
@@ -182,9 +181,32 @@ export function multiLevelPivot(data, settings) {
     });
   }
 
+  if (
+    settings[METRICS_AS_ROWS_SETTING] &&
+    formattedColumnTreeWithoutValues.length === 0
+  ) {
+    formattedColumnTreeWithoutValues.push({
+      value: t`Values`,
+      children: [],
+    });
+  }
+
   const rowIndex = addEmptyIndexItem(
-    formattedRowTree.flatMap(root => enumeratePaths(root)),
+    formattedRowTreeWithoutValues.flatMap(root => enumeratePaths(root)),
   );
+
+  const valueColumns = valueColumnIndexes.map(index => [
+    columns[index],
+    columnSettings[index],
+  ]);
+
+  const formattedRowTree = !settings[METRICS_AS_ROWS_SETTING]
+    ? formattedRowTreeWithoutValues
+    : addValueRowNodes(formattedRowTreeWithoutValues, valueColumns);
+
+  const formattedColumnTree = settings[METRICS_AS_ROWS_SETTING]
+    ? formattedColumnTreeWithoutValues
+    : addValueColumnNodes(formattedColumnTreeWithoutValues, valueColumns);
 
   const leftHeaderItems = treeToArray(formattedRowTree.flat());
   const topHeaderItems = treeToArray(formattedColumnTree.flat());
@@ -217,6 +239,7 @@ export function multiLevelPivot(data, settings) {
     rowIndexes: rowColumnIndexes,
     columnIndexes: columnColumnIndexes,
     valueIndexes: valueColumnIndexes,
+    rowMetrics: settings[METRICS_AS_ROWS_SETTING],
   };
 }
 
@@ -278,6 +301,7 @@ function createRowSectionGetter({
   columnIndex,
   rowIndex,
   colorGetter,
+  rowMetrics,
 }) {
   const formatValues = values =>
     values === undefined
@@ -331,13 +355,13 @@ function createRowSectionGetter({
 
 // Given a tree representation of an index, enumeratePaths produces a list of all paths to leaf nodes
 function enumeratePaths(
-  { rawValue, isGrandTotal, children, isValueColumn },
+  { rawValue, isGrandTotal, children, isValueColumn, isValueRow },
   path = [],
 ) {
   if (isGrandTotal) {
     return [[]];
   }
-  if (isValueColumn) {
+  if (isValueColumn || isValueRow) {
     return [path];
   }
   const pathWithValue = [...path, rawValue];
@@ -385,9 +409,50 @@ function addValueColumnNodes(nodes, valueColumns) {
   return nodes.map(updateNode);
 }
 
+// This might add value row(s) to the bottom of the left header tree.
+// We display the value row names if there are multiple
+// or if there are no rows pivoted to the left header.
+function addValueRowNodes(nodes, valueRows) {
+  const leafNodes = valueRows.map(([column, columnSettings]) => {
+    return {
+      value: columnSettings.column_title || formatColumn(column),
+      children: [],
+      isValueRow: true,
+    };
+  });
+  if (nodes.length === 0) {
+    return leafNodes;
+  }
+  if (valueRows.length <= 1) {
+    return nodes;
+  }
+  function updateNode(node) {
+    if (node.isSubtotal) {
+      leafNodes.map(node => ({
+        ...node,
+        isSubtotal: true,
+      }));
+    }
+    const children =
+      node.children.length === 0
+        ? leafNodes.map(leafNode => ({
+            ...leafNode,
+            isSubtotal: node.isSubtotal,
+          }))
+        : node.children.map(updateNode);
+    return { ...node, children };
+  }
+  return nodes.map(updateNode);
+}
+
 // This inserts nodes into the left header tree for subtotals.
 // We also mark nodes with `hasSubtotal` to display collapsing UI
-function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
+function addSubtotals(
+  rowColumnTree,
+  showSubtotalsByColumn,
+  rowMetrics = false,
+  totalsAbove = false,
+) {
   // For top-level items we want to show subtotal even if they have only one child
   // Except the case when top-level items have flat structure
   // (meaning all of the items have just one child)
@@ -399,6 +464,8 @@ function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
   return rowColumnTree.flatMap(item =>
     addSubtotal(item, showSubtotalsByColumn, {
       shouldShowSubtotal: notFlat || item.children.length > 1,
+      rowMetrics,
+      totalsAbove,
     }),
   );
 }
@@ -406,7 +473,7 @@ function addSubtotals(rowColumnTree, showSubtotalsByColumn) {
 function addSubtotal(
   item,
   [isSubtotalEnabled, ...showSubtotalsByColumn],
-  { shouldShowSubtotal = false } = {},
+  { shouldShowSubtotal = false, rowMetrics = false, totalsAbove = false } = {},
 ) {
   const hasSubtotal = isSubtotalEnabled && shouldShowSubtotal;
   const subtotal = hasSubtotal
@@ -420,9 +487,30 @@ function addSubtotal(
         },
       ]
     : [];
+
   if (item.isCollapsed) {
     return subtotal;
   }
+
+  if (totalsAbove) {
+    const node = {
+      ...item,
+      hasSubtotal,
+      children: item.children.flatMap(child =>
+        // add subtotals until the last level
+        child.children.length > 0
+          ? addSubtotal(child, showSubtotalsByColumn, {
+              shouldShowSubtotal:
+                child.children.length > 1 || child.isCollapsed,
+              rowMetrics,
+              totalsAbove,
+            })
+          : child,
+      ),
+    };
+    return [...subtotal, node];
+  }
+
   const node = {
     ...item,
     hasSubtotal,
@@ -431,6 +519,8 @@ function addSubtotal(
       child.children.length > 0
         ? addSubtotal(child, showSubtotalsByColumn, {
             shouldShowSubtotal: child.children.length > 1 || child.isCollapsed,
+            rowMetrics,
+            totalsAbove,
           })
         : child,
     ),
@@ -505,15 +595,21 @@ function treeToArray(nodes) {
       children,
       rawValue,
       isGrandTotal,
+      isSubtotal,
       isValueColumn,
+      isValueRow,
       ...rest
     } of nodes) {
       const pathWithValue =
-        isValueColumn || isGrandTotal ? null : [...path, rawValue];
+        isValueColumn || isValueRow || isGrandTotal
+          ? null
+          : [...path, rawValue];
       const item = {
         ...rest,
         rawValue,
         isGrandTotal,
+        isSubtotal,
+        isValueRow,
         depth,
         offset,
         hasChildren: children.length > 0,
