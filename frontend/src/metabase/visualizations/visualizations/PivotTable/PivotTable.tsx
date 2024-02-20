@@ -215,16 +215,19 @@ function PivotTable({
 
   // In cases where there are horizontal scrollbars are visible AND the data grid has to scroll vertically as well,
   // the left sidebar and the main grid can get out of ScrollSync due to slightly differing heights
-  function scrollBarOffsetSize() {
+  function scrollBarOffsetSize(direction: "h" | "v" = "h") {
     if (!gridElement) {
       return 0;
     }
+
     // get the size of the scrollbars
     const scrollBarSize = getScrollBarSize();
-    const scrollsHorizontally =
-      gridElement.scrollWidth > parseInt(gridElement.style.width);
+    const scrolls =
+      direction === "h"
+        ? gridElement.scrollWidth > parseInt(gridElement.style.width)
+        : gridElement.scrollHeight > parseInt(gridElement.style.height);
 
-    if (scrollsHorizontally && scrollBarSize > 0) {
+    if (scrolls && scrollBarSize > 0) {
       return scrollBarSize;
     } else {
       return 0;
@@ -471,7 +474,7 @@ function PivotTable({
                 ref={topHeaderRef}
                 className="scroll-hide-all"
                 isNightMode={isNightMode}
-                width={width - leftHeaderWidth}
+                width={width - leftHeaderWidth - scrollBarOffsetSize("v")}
                 height={topHeaderHeight}
                 cellCount={topHeaderItems.length}
                 cellRenderer={({ index, style, key }) => (
@@ -535,7 +538,9 @@ function PivotTable({
                         )
                       }
                       width={leftHeaderWidth}
-                      height={height - scrollBarOffsetSize()}
+                      height={
+                        height - topHeaderHeight - scrollBarOffsetSize("h")
+                      }
                       scrollTop={scrollTop}
                       onScroll={({ scrollTop }) =>
                         onScroll({ scrollTop } as OnScrollParams)
@@ -550,7 +555,7 @@ function PivotTable({
                   {({ height }) => (
                     <Grid
                       width={width - leftHeaderWidth}
-                      height={height}
+                      height={height - topHeaderHeight}
                       className="text-dark"
                       rowCount={rowCount}
                       columnCount={columnCount}
