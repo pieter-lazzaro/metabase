@@ -2,7 +2,7 @@ import type * as React from "react";
 import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import { findDOMNode } from "react-dom";
 import { connect } from "react-redux";
-import { usePrevious, useMount } from "react-use";
+import { usePrevious } from "react-use";
 import type { OnScrollParams } from "react-virtualized";
 import { Grid, Collection, ScrollSync, AutoSizer } from "react-virtualized";
 import { t } from "ttag";
@@ -178,9 +178,9 @@ function PivotTable({
     rowSortOrder,
   ]);
 
-  useMount(() => {
+  useEffect(() => {
     setGridElement(bodyRef.current && findDOMNode(bodyRef.current));
-  });
+  }, []);
 
   const pivoted = useMemo(() => {
     if (data == null || !data.cols.some(isPivotGroupColumn)) {
@@ -224,8 +224,10 @@ function PivotTable({
     const scrollBarSize = getScrollBarSize();
     const scrolls =
       direction === "h"
-        ? gridElement.scrollWidth > parseInt(gridElement.style.width)
-        : gridElement.scrollHeight > parseInt(gridElement.style.height);
+        ? gridElement.scrollWidth >
+          parseInt(gridElement.style.width) - scrollBarSize
+        : gridElement.scrollHeight >
+          parseInt(gridElement.style.height) - scrollBarSize;
 
     if (scrolls && scrollBarSize > 0) {
       return scrollBarSize;
