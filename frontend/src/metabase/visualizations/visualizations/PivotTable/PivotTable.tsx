@@ -4,7 +4,8 @@ import { findDOMNode } from "react-dom";
 import { connect } from "react-redux";
 import { usePrevious } from "react-use";
 import type { OnScrollParams } from "react-virtualized";
-import { Grid, Collection, ScrollSync, AutoSizer } from "react-virtualized";
+import { Grid, Collection, ScrollSync } from "react-virtualized";
+import AutoSizer from "react-virtualized-auto-sizer";
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -540,9 +541,7 @@ function PivotTable({
                         )
                       }
                       width={leftHeaderWidth}
-                      height={
-                        height - topHeaderHeight - scrollBarOffsetSize("h")
-                      }
+                      height={height - scrollBarOffsetSize("h")}
                       scrollTop={scrollTop}
                       onScroll={({ scrollTop }) =>
                         onScroll({ scrollTop } as OnScrollParams)
@@ -557,7 +556,7 @@ function PivotTable({
                   {({ height }) => (
                     <Grid
                       width={width - leftHeaderWidth}
-                      height={height - topHeaderHeight}
+                      height={height}
                       className="text-dark"
                       rowCount={rowCount}
                       columnCount={columnCount}

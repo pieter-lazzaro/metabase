@@ -1,6 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useCallback } from "react";
-import { List, WindowScroller, AutoSizer } from "react-virtualized";
+import { List, WindowScroller } from "react-virtualized";
+import AutoSizer from "react-virtualized-auto-sizer";
 
 function VirtualizedList({ items, rowHeight, renderItem, scrollElement }) {
   const rowRenderer = useCallback(
