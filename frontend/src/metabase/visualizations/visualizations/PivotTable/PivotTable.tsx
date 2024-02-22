@@ -139,7 +139,7 @@ function PivotTable({
     [onUpdateVisualizationSettings],
   );
 
-  const bodyRef = useRef(null);
+  const bodyRef = useRef<Grid | null>(null);
   const leftHeaderRef = useRef(null);
   const topHeaderRef = useRef(null);
 
@@ -179,8 +179,9 @@ function PivotTable({
     rowSortOrder,
   ]);
 
-  useEffect(() => {
-    setGridElement(bodyRef.current && findDOMNode(bodyRef.current));
+  const gridRef = useCallback((grid: Grid | null) => {
+    bodyRef.current = grid;
+    setGridElement(grid && (findDOMNode(grid) as HTMLElement));
   }, []);
 
   const pivoted = useMemo(() => {
@@ -601,7 +602,7 @@ function PivotTable({
                       onScroll={({ scrollLeft, scrollTop }) =>
                         onScroll({ scrollLeft, scrollTop } as OnScrollParams)
                       }
-                      ref={bodyRef}
+                      ref={gridRef}
                       scrollTop={scrollTop}
                       scrollLeft={scrollLeft}
                     />
