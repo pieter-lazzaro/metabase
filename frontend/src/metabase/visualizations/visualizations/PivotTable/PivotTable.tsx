@@ -88,7 +88,7 @@ function PivotTable({
   const [gridElement, setGridElement] = useState<HTMLElement | null>(null);
   const columnWidthSettings = settings["pivot_table.column_widths"];
   const rowMetrics = settings[MEASURES_AS_ROWS_SETTING];
-  const rowSortOrderSettings = settings["pivot_table.row_sort_order"];
+  const rowSortOrderSettings = settings[ROW_SORT_ORDER];
 
   const [
     { leftHeaderWidths, totalLeftHeaderWidths, valueHeaderWidths },
@@ -132,7 +132,7 @@ function PivotTable({
     (newSortOrder: RowSortOrder) => {
       setRowSortOrder(newSortOrder);
       onUpdateVisualizationSettings({
-        "pivot_table.row_sort_order": newSortOrder,
+        [ROW_SORT_ORDER]: newSortOrder,
       });
     },
     [onUpdateVisualizationSettings],
@@ -187,18 +187,13 @@ function PivotTable({
       return null;
     }
 
-    const localSettings = {
-      ...settings,
-      [ROW_SORT_ORDER]: rowSortOrder,
-    };
-
     try {
-      return multiLevelPivot(data, localSettings);
+      return multiLevelPivot(data, settings);
     } catch (e) {
       console.warn(e);
     }
     return null;
-  }, [data, settings, rowSortOrder]);
+  }, [data, settings]);
 
   const previousRowIndexes = usePrevious(pivoted?.rowIndexes);
   const previousRowMetrics = usePrevious(pivoted?.rowMetrics);
@@ -243,7 +238,7 @@ function PivotTable({
       });
 
       onUpdateVisualizationSettings({
-        "pivot_table.row_sort_order": {},
+        [ROW_SORT_ORDER]: {},
       });
     }
 
