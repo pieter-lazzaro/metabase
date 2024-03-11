@@ -11,6 +11,7 @@ import _ from "underscore";
 import { sumArray } from "metabase/lib/arrays";
 import {
   COLUMN_SHOW_TOTALS,
+  MEASURES_AS_ROWS_SETTING,
   ROW_SORT_ORDER,
   isPivotGroupColumn,
   multiLevelPivot,
@@ -86,7 +87,7 @@ function PivotTable({
 }: PivotTableProps) {
   const [gridElement, setGridElement] = useState<HTMLElement | null>(null);
   const columnWidthSettings = settings["pivot_table.column_widths"];
-  const rowMetrics = settings["pivot_table.metrics_as_rows"];
+  const rowMetrics = settings[MEASURES_AS_ROWS_SETTING];
   const rowSortOrderSettings = settings["pivot_table.row_sort_order"];
 
   const [

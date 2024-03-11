@@ -16,7 +16,7 @@ export const COLUMN_SHOW_TOTALS = "pivot_table.column_show_totals";
 export const COLUMN_SORT_ORDER = "pivot_table.column_sort_order";
 export const ROW_SORT_ORDER = "pivot_table.row_sort_order";
 export const ROW_TOTALS_ON_TOP = "pivot_table.row_totals_on_top";
-export const METRICS_AS_ROWS_SETTING = "pivot_table.metrics_as_rows";
+export const MEASURES_AS_ROWS_SETTING = "pivot_table.measures_as_rows";
 export const COLUMN_SORT_ORDER_ASC = "ascending";
 export const COLUMN_SORT_ORDER_DESC = "descending";
 
@@ -175,7 +175,7 @@ export function multiLevelPivot(data, settings) {
     ? addSubtotals(
         formattedRowTreeWithoutSubtotals,
         showSubtotalsByColumn,
-        settings[METRICS_AS_ROWS_SETTING],
+        settings[MEASURES_AS_ROWS_SETTING],
         settings[ROW_TOTALS_ON_TOP],
       )
     : formattedRowTreeWithoutSubtotals;
@@ -194,7 +194,7 @@ export function multiLevelPivot(data, settings) {
   }
 
   if (
-    settings[METRICS_AS_ROWS_SETTING] &&
+    settings[MEASURES_AS_ROWS_SETTING] &&
     formattedColumnTreeWithoutValues.length === 0
   ) {
     formattedColumnTreeWithoutValues.push({
@@ -214,11 +214,11 @@ export function multiLevelPivot(data, settings) {
     columnSettings[index],
   ]);
 
-  const formattedRowTree = !settings[METRICS_AS_ROWS_SETTING]
+  const formattedRowTree = !settings[MEASURES_AS_ROWS_SETTING]
     ? formattedRowTreeWithoutValues
     : addValueRowNodes(formattedRowTreeWithoutValues, valueColumns);
 
-  const formattedColumnTree = settings[METRICS_AS_ROWS_SETTING]
+  const formattedColumnTree = settings[MEASURES_AS_ROWS_SETTING]
     ? formattedColumnTreeWithoutValues
     : addValueColumnNodes(
         formattedColumnTreeWithoutValues,
@@ -262,7 +262,7 @@ export function multiLevelPivot(data, settings) {
     rowIndexes: rowColumnIndexes,
     columnIndexes: columnColumnIndexes,
     valueIndexes: valueColumnIndexes,
-    rowMetrics: settings[METRICS_AS_ROWS_SETTING],
+    rowMetrics: settings[MEASURES_AS_ROWS_SETTING],
   };
 }
 

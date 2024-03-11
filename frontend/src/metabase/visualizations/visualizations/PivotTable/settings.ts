@@ -11,7 +11,7 @@ import {
   COLUMN_SHOW_TOTALS,
   COLUMN_FORMATTING_SETTING,
   isPivotGroupColumn,
-  METRICS_AS_ROWS_SETTING,
+  MEASURES_AS_ROWS_SETTING,
   ROW_TOTALS_ON_TOP,
   ROW_SORT_ORDER,
 } from "metabase/lib/data_grid";
@@ -148,9 +148,9 @@ export const settings = {
     default: true,
     inline: true,
   },
-  [METRICS_AS_ROWS_SETTING]: {
+  [MEASURES_AS_ROWS_SETTING]: {
     section: t`Columns`,
-    title: t`Show Metrics in Rows`,
+    title: t`Show Measures as Rows`,
     widget: "toggle",
     default: false,
     inline: true,
