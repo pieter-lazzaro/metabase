@@ -726,7 +726,8 @@ describe("data_grid", () => {
               isSubtotal: true,
               value: "3",
               backgroundColor: null,
-              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["a"]' } },
+              isCollapsed: true,
+              isGrandTotal: false,
             },
           ]);
         });
@@ -743,7 +744,8 @@ describe("data_grid", () => {
               isSubtotal: true,
               value: "3",
               backgroundColor: null,
-              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["a"]' } },
+              isCollapsed: true,
+              isGrandTotal: false,
             },
           ]);
           expect(getRowSection(0, 1)).toEqual([
@@ -751,7 +753,8 @@ describe("data_grid", () => {
               isSubtotal: true,
               value: "7",
               backgroundColor: null,
-              clicked: { rowSort: { colIdx: "[]", rowSectionIdx: '["b"]' } },
+              isCollapsed: true,
+              isGrandTotal: false,
             },
           ]);
         });
@@ -796,12 +799,10 @@ describe("data_grid", () => {
           expect(leftHeaderItems[1]).toMatchObject({
             value: "Totals for Affiliate",
             isSubtotal: true,
-            clicked: { rowSort: { rowSectionIdx: '["May"]' } },
           });
           expect(leftHeaderItems[5]).toMatchObject({
             value: "Totals for Twitter",
             isSubtotal: true,
-            clicked: { rowSort: { rowSectionIdx: '["May"]' } },
           });
           expect(getRowSection(1, 0)).toMatchObject([
             {
@@ -813,9 +814,8 @@ describe("data_grid", () => {
               isSubtotal: true,
               value: "6",
               backgroundColor: null,
-              clicked: {
-                rowSort: { colIdx: "[]", rowSectionIdx: '["May","Google"]' },
-              },
+              isCollapsed: true,
+              isGrandTotal: false,
             },
           ]);
           expect(getRowSection(1, 3)).toEqual([
@@ -823,9 +823,8 @@ describe("data_grid", () => {
               isSubtotal: true,
               value: "4",
               backgroundColor: null,
-              clicked: {
-                rowSort: { colIdx: "[]", rowSectionIdx: '["May","Organic"]' },
-              },
+              isCollapsed: true,
+              isGrandTotal: false,
             },
           ]);
         });
