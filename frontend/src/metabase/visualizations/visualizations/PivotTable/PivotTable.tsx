@@ -354,7 +354,7 @@ function PivotTable({
     return (e: React.SyntheticEvent) => {
       if (isRowSortClickedObject(clicked)) {
         e.stopPropagation();
-        const { rowSectionIdx, colIdx, column } = clicked.rowSort ?? {};
+        const { rowSectionIdx, colIdx = "[]", column } = clicked.rowSort ?? {};
 
         const previousRowSort = rowSortOrder[rowSectionIdx ?? "[]"];
 

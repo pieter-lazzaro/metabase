@@ -27,7 +27,13 @@ import {
   DEFAULT_CELL_WIDTH,
 } from "./constants";
 import { partitions } from "./partitions";
-import type { PivotSetting, HeaderItem, CustomColumnWidth, RowSectionSortOrder, RowSortOrder } from "./types";
+import type {
+  PivotSetting,
+  HeaderItem,
+  CustomColumnWidth,
+  RowSectionSortOrder,
+  RowSortOrder,
+} from "./types";
 
 // adds or removes columns from the pivot settings based on the current query
 export function updateValueWithCurrentColumns(
@@ -94,8 +100,8 @@ export function isFormattablePivotColumn(column: DatasetColumn) {
 }
 
 export function isRowSortClickedObject(
-  clicked?: ClickObject,
-): clicked is ClickObject & { rowSort?: RowSectionSortOrder } {
+  clicked?: ClickObject & { rowSort?: RowSectionSortOrder },
+): clicked is ClickObject & { rowSort: RowSectionSortOrder } {
   if (clicked?.rowSort === undefined) {
     return false;
   }
