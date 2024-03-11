@@ -8,7 +8,7 @@ import {
   COLUMN_SORT_ORDER,
   COLUMN_SHOW_TOTALS,
   ROW_SORT_ORDER,
-  METRICS_AS_ROWS_SETTING,
+  MEASURES_AS_ROWS_SETTING,
 } from "metabase/lib/data_grid";
 import { TYPE } from "metabase-lib/types/constants";
 
@@ -197,7 +197,7 @@ describe("data_grid", () => {
         "pivot.show_row_totals": showRowTotals,
         "pivot.show_column_totals": showColumnTotals,
         [ROW_SORT_ORDER]: rowSorts,
-        [METRICS_AS_ROWS_SETTING]: rowMetrics,
+        [MEASURES_AS_ROWS_SETTING]: rowMetrics,
       };
       data = {
         ...data,
