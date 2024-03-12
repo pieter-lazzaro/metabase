@@ -222,20 +222,16 @@ function PivotTable({
       return 0;
     }
 
-    // get the size of the scrollbars
-    const scrollBarSize = getScrollBarSize();
-    const scrolls =
-      direction === "h"
-        ? gridElement.scrollWidth >
-          parseInt(gridElement.style.width) - scrollBarSize
-        : gridElement.scrollHeight >
-          parseInt(gridElement.style.height) - scrollBarSize;
-
-    if (scrolls && scrollBarSize > 0) {
-      return scrollBarSize;
-    } else {
-      return 0;
+    if (
+      (direction === "h" &&
+        gridElement.scrollWidth > parseInt(gridElement.style.width)) ||
+      (direction === "v" &&
+        gridElement.scrollHeight > parseInt(gridElement.style.height))
+    ) {
+      return getScrollBarSize();
     }
+
+    return 0;
   }
 
   useEffect(() => {
