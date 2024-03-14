@@ -208,12 +208,14 @@ function PivotTable({
     !hasColumnWidths ||
     (previousRowIndexes &&
       !_.isEqual(pivoted?.rowIndexes, previousRowIndexes)) ||
-    (previousRowMetrics && !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
+    (previousRowMetrics !== undefined &&
+      !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
 
   const rowsOrColumnsChanged =
     (previousRowIndexes &&
       !_.isEqual(pivoted?.rowIndexes, previousRowIndexes)) ||
-    (previousRowMetrics && !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
+    (previousRowMetrics !== undefined &&
+      !_.isEqual(pivoted?.rowMetrics, previousRowMetrics));
 
   // In cases where there are horizontal scrollbars are visible AND the data grid has to scroll vertically as well,
   // the left sidebar and the main grid can get out of ScrollSync due to slightly differing heights
