@@ -10,10 +10,10 @@ import {
   COLUMN_SORT_ORDER_ASC,
   COLUMN_SORT_ORDER_DESC,
   COLUMN_SPLIT_SETTING,
-  isPivotGroupColumn,
   MEASURES_AS_ROWS_SETTING,
-  ROW_TOTALS_ON_TOP,
   ROW_SORT_ORDER,
+  ROW_TOTALS_ON_TOP,
+  isPivotGroupColumn,
 } from "metabase/lib/data_grid";
 import { formatColumn } from "metabase/lib/formatting";
 import { ChartSettingIconRadio } from "metabase/visualizations/components/settings/ChartSettingIconRadio";
@@ -262,18 +262,27 @@ export const _columnSettings = {
     getDefault: (
       column: DatasetColumn,
       columnSettings: DatasetColumn,
-      { settings }: { settings: VisualizationSettings },
+      { settings, series }: { settings: VisualizationSettings; series: Series },
     ) => {
+      const columnSplitSettings = migratePivotColumnSplitSetting(
+        settings[COLUMN_SPLIT_SETTING] ?? { rows: [], columns: [], values: [] },
+        series[0].data?.cols ?? [],
+      );
+
       //Default to showing totals if appropriate
-      const rows = settings[COLUMN_SPLIT_SETTING]?.rows || [];
+      const rows = columnSplitSettings?.rows || [];
       return rows.slice(0, -1).some(row => _.isEqual(row, column.name));
     },
     getHidden: (
       column: DatasetColumn,
       columnSettings: DatasetColumn,
-      { settings }: { settings: VisualizationSettings },
+      { settings, series }: { settings: VisualizationSettings; series: Series },
     ) => {
-      const rows = settings[COLUMN_SPLIT_SETTING]?.rows || [];
+      const columnSplitSettings = migratePivotColumnSplitSetting(
+        settings[COLUMN_SPLIT_SETTING] ?? { rows: [], columns: [], values: [] },
+        series[0].data?.cols ?? [],
+      );
+      const rows = columnSplitSettings?.rows || [];
       // to show totals a column needs to be:
       //  - in the left header ("rows" in COLUMN_SPLIT_SETTING)
       //  - not the last column
